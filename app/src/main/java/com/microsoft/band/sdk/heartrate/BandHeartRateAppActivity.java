@@ -25,6 +25,7 @@ import android.view.View.OnClickListener;
 import android.widget.Button;
 import android.widget.TextView;
 
+import com.firebase.client.Firebase;
 import com.microsoft.band.BandClient;
 import com.microsoft.band.BandClientManager;
 import com.microsoft.band.BandException;
@@ -49,10 +50,12 @@ public class BandHeartRateAppActivity extends Activity {
 	int totalHeart = 0;
     int avgHeartRate;
     int minutesPassed = 0;
+    Firebase myFirebaseRef;
+    String userId;
 	private BandHeartRateEventListener mHeartRateEventListener = new BandHeartRateEventListener() {
         @Override
         public void onBandHeartRateChanged(final BandHeartRateEvent event) {
-            if(event.getHeartRate() > 75) {
+            if(event.getHeartRate() > 0) {
                 if (startDate == null) {
                     timestamp = event.getTimestamp();
                     startDate = new Date(timestamp);
@@ -70,28 +73,30 @@ public class BandHeartRateAppActivity extends Activity {
                         totalHeart += event.getHeartRate();
                         avgHeartRate = totalHeart / (minutesPassed + 1);
                     }
-                    appendToUI(String.format("Starting Day = %d, hour = %d, minutes = %d, seconds = %d\n"
+                    appendToUI(String.format("ID = %s\n" +
+                            "Starting Day = %d, hour = %d, minutes = %d, seconds = %d\n"
                                     + "Heart Rate = %d beats per minute\n" + "Day = %d, hour = %d, minutes = %d seconds = %d\n"
                                     + "Quality = %s\n" + "Days passed = %d, Time passed in minutes = %d\n"
                                     + "Average Heart rate = %d",
-                            startDate.getDate(), startDate.getHours(), startDate.getMinutes(), startDate.getSeconds(),
+                            userId, startDate.getDate(), startDate.getHours(), startDate.getMinutes(), startDate.getSeconds(),
                             event.getHeartRate(), date.getDate(), date.getHours(), date.getMinutes(), date.getSeconds(),
                             event.getQuality(), dayDifference, minutesPassed, avgHeartRate));
                 }
             } else {
                 // do something with minutes passed and avg heart rate
                 if(startDate != null) // pass minutesPassed and avgHeart to some function to give to azure
-
+                myFirebaseRef.child(userId).setValue(minutesPassed);
                 //resets the counters
                 avgHeartRate = 0;
                 startDate = null;
                 totalHeart = 0;
                 minutesPassed = 0;
                 // just signals that nothing's going on/ yo heart beat aint fast enough dawg
-                appendToUI(String.format("Starting Day = %d, hour = %d, minutes = %d, seconds = %d\n"
+                appendToUI(String.format("Id: %s\n" +
+                        "Starting Day = %d, hour = %d, minutes = %d, seconds = %d\n"
                         + "Heart Rate = %d beats per minute\n" + "Day = %d, hour = %d, minutes = %d seconds = %d\n"
                         + "Quality = %s\n" + "Days passed = %d, Time passed in minutes = %d\n"
-                        + "Average Heart rate = %d", 0, 0, 0, 0, 0, 0, 0, 0, 0, "null", 0, 0, 0));
+                        + "Average Heart rate = %d", userId, 0, 0, 0, 0, 0, 0, 0, 0, 0, "null", 0, 0, 0));
 
             }
 
@@ -102,7 +107,11 @@ public class BandHeartRateAppActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Firebase.setAndroidContext(this);
         setContentView(R.layout.activity_main);
+        Bundle b = getIntent().getExtras();
+        userId = b.getString("ID", "null");
+        myFirebaseRef = new Firebase("https://ransome.firebaseio.com");
 
         txtStatus = (TextView) findViewById(R.id.txtStatus);
         btnStart = (Button) findViewById(R.id.btnStart);
@@ -116,7 +125,7 @@ public class BandHeartRateAppActivity extends Activity {
 		});
         
         final WeakReference<Activity> reference = new WeakReference<Activity>(this);
-        
+
         btnConsent = (Button) findViewById(R.id.btnConsent);
         btnConsent.setOnClickListener(new OnClickListener() {
 			@SuppressWarnings("unchecked")
@@ -132,6 +141,7 @@ public class BandHeartRateAppActivity extends Activity {
             public void onClick(View view) {
                 startDate = null;
                 totalHeart = 0;
+                myFirebaseRef.child(userId).setValue(minutesPassed);
                 if (client != null) {
                     try {
                         client.getSensorManager().unregisterHeartRateEventListener(mHeartRateEventListener);
